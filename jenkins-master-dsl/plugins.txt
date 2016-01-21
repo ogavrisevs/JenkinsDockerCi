@@ -1,0 +1,17 @@
+
+job-dsl:1.42
+github:1.16.0
+  token-macro:1.12.1
+  plain-credentials:1.1
+  git:2.4.1
+    scm-api:1.0
+    git-client:1.19.1
+    matrix-project:1.6
+      script-security:1.16
+      junit:1.10
+    credentials:1.24
+    mailer:1.16
+    ssh-credentials:1.11
+  github-api:1.71
+ec2:1.29
+  node-iterator-api:1.5
