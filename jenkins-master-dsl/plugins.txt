@@ -1,4 +1,3 @@
-
 job-dsl:1.42
 github:1.16.0
   token-macro:1.12.1

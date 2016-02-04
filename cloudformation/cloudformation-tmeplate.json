@@ -1,0 +1,739 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "AWS CloudFormation template for creating jenkins cluster.",
+  "Parameters": {
+    "JenkinsMasterCount": {
+      "Type": "Number",
+      "Default": "2",
+      "Description": "JenkinsMasterCount",
+      "MinValue": "2",
+      "MaxValue": "10"
+    },
+    "EcsInstanceCount": {
+      "Type": "Number",
+      "Default": "2",
+      "MinValue": "2",
+      "MaxValue": "10"
+    },
+    "JenkinsMasterLbDns": {
+      "Type": "String",
+      "Default": "jenkins-docker"
+    },
+    "JenkinsMasterPort": {
+      "Type": "Number",
+      "Default": "8080"
+    },
+    "LbJenkinsPort": {
+      "Type": "String",
+      "Default": "80"
+    },
+    "JenkinsDockerImage": {
+      "Type": "String",
+      "Default": "ogavrisevs/jenkinsdockerci:latest"
+    },
+    "Subnets": {
+      "Type": "List<AWS::EC2::Subnet::Id>",
+      "Description": "Subnet IDs"
+    },
+    "Vpc": {
+      "Type": "AWS::EC2::VPC::Id",
+      "Description": "VPC Id"
+    }
+
+
+  },
+  "Mappings": {
+    "instanceTypes": {
+      "ecs": {
+        "InstanceType": "t2.micro"
+      }
+    },
+    "InstanceRootBlockDevice": {
+      "ecs": {
+        "DeviceName": "/dev/xvda",
+        "VolumeType": "gp2",
+        "VolumeSize": "30"
+      }
+    },
+    "AMIs": {
+      "eu-west-1": {
+        "EcsLinux": "ami-13f84d60"
+      },
+      "us-east-1": {
+        "EcsLinux": "ami-cb2305a1"
+      },
+      "us-west-1": {
+        "EcsLinux": "ami-bdafdbdd"
+      },
+      "us-west-2": {
+        "EcsLinux": "ami-ec75908c"
+      },
+      "eu-central-1": {
+        "EcsLinux": "ami-c3253caf"
+      },
+      "ap-northeast-1": {
+        "EcsLinux": "ami-e9724c87"
+      },
+      "ap-southeast-1": {
+        "EcsLinux": "ami-5f31fd3c"
+      },
+      "ap-southeast-2": {
+        "EcsLinux": "ami-83af8ae0"
+      }
+    },
+    "ssh": {
+      "pubKey": {
+        "map": [
+          "ssh-rsa AAAAB3............."
+        ]
+      }
+    },
+    "IPs": {
+      "Allowed": {
+        "Subnets": "0.0.0.0/0"
+      }
+    }
+  },
+  "Resources": {
+    "EcsCluster": {
+      "Type": "AWS::ECS::Cluster"
+    },
+    "JenkinsMasterTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "ContainerDefinitions": [
+          {
+            "Name": "JenkinsMaster",
+            "Image": {
+              "Ref": "JenkinsDockerImage"
+            },
+            "Cpu": "1024",
+            "Memory": "995",
+            "EntryPoint": [],
+            "Environment": [],
+            "Command": [],
+            "PortMappings": [
+              {
+                "HostPort": {
+                  "Ref": "JenkinsMasterPort"
+                },
+                "ContainerPort": {
+                  "Ref": "JenkinsMasterPort"
+                }
+              }
+            ],
+            "VolumesFrom": [],
+            "Links": [],
+            "MountPoints": [],
+            "Essential": "true"
+          }
+        ],
+        "Volumes": []
+      }
+    },
+    "JenkinsMasterEcsService": {
+      "Type": "AWS::ECS::Service",
+      "DependsOn": "EcsCluster",
+      "CreationPolicy": {
+        "ResourceSignal": {
+          "Timeout": "PT1H"
+        }
+      },
+      "Properties": {
+        "Cluster": {
+          "Ref": "EcsCluster"
+        },
+        "DesiredCount": {
+          "Ref": "JenkinsMasterCount"
+        },
+        "TaskDefinition": {
+          "Ref": "JenkinsMasterTaskDefinition"
+        }
+      }
+    },
+    "ElasticLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+      "DependsOn": "LbSecurityGroup",
+      "Properties": {
+        "Scheme": "internal",
+        "Subnets": {
+          "Ref": "Subnets"
+        },
+        "LBCookieStickinessPolicy": [
+          {
+            "PolicyName": "LBPolicy",
+            "CookieExpirationPeriod": "180"
+          }
+        ],
+        "Listeners": [
+          {
+            "LoadBalancerPort": "80",
+            "InstancePort": {
+              "Ref": "JenkinsMasterPort"
+            },
+            "Protocol": "HTTP",
+            "PolicyNames": [
+              "LBPolicy"
+            ]
+          }
+        ],
+        "HealthCheck": {
+          "Target": {
+            "Fn::Join": [
+              "",
+              [
+                "HTTP:",
+                {
+                  "Ref": "JenkinsMasterPort"
+                },
+                "/"
+              ]
+            ]
+          },
+          "HealthyThreshold": "3",
+          "UnhealthyThreshold": "5",
+          "Interval": "30",
+          "Timeout": "5"
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "LbSecurityGroup"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "-",
+                [
+                  {
+                    "Ref": "AWS::StackName"
+                  },
+                  "ElasticLoadBalancer"
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "LbSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Allow access only from user subents ",
+        "VpcId": {
+          "Ref": "Vpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": {
+              "Ref": "LbJenkinsPort"
+            },
+            "ToPort": {
+              "Ref": "LbJenkinsPort"
+            },
+            "CidrIp": {
+              "Fn::FindInMap": [
+                "IPs",
+                "Allowed",
+                "Subnets"
+              ]
+            }
+          }
+        ],
+        "SecurityGroupEgress": [],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "-",
+                [
+                  {
+                    "Ref": "AWS::StackName"
+                  },
+                  "LbSecurityGroup"
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "JenkinsSlaveSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "GroupDescription": "SG for Jenkins Slaves ",
+        "VpcId": {
+          "Ref": "Vpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": {
+              "Fn::FindInMap": [
+                "IPs",
+                "Allowed",
+                "Subnets"
+
+              ]
+            }
+          }
+        ],
+        "SecurityGroupEgress": [],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "-",
+                [
+                  {
+                    "Ref": "AWS::StackName"
+                  },
+                  "JenkinsSlaveSecurityGroup"
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "EcsSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "SG for ECS cluster nodes.",
+        "VpcId": {
+          "Ref": "Vpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": {
+              "Fn::FindInMap": [
+                "IPs",
+                "Allowed",
+                "Subnets"
+              ]
+            }
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": {
+              "Ref": "JenkinsMasterPort"
+            },
+            "ToPort": {
+              "Ref": "JenkinsMasterPort"
+            },
+            "CidrIp": {
+              "Fn::FindInMap": [
+                "IPs",
+                "Allowed",
+                "Subnets"
+              ]
+            }
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": {
+              "Ref": "JenkinsMasterPort"
+            },
+            "ToPort": {
+              "Ref": "JenkinsMasterPort"
+            },
+            "SourceSecurityGroupId": {
+              "Ref": "LbSecurityGroup"
+            }
+          }
+        ],
+        "SecurityGroupEgress": [],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "-",
+                [
+                  {
+                    "Ref": "AWS::StackName"
+                  },
+                  "EcsSecurityGroup"
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "EcsRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "ec2.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyName": "ecs_register_containers",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ecs:DiscoverPollEndpoint",
+                    "ecs:Poll",
+                    "ecs:RegisterContainerInstance",
+                    "ecs:SubmitContainerStateChange",
+                    "ecs:SubmitTaskStateChange",
+                    "ecs:StartTelemetrySession"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "ec2_start_terminate",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Action": [
+                    "ec2:StopInstances",
+                    "ec2:TerminateInstances",
+                    "ec2:StartInstances"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    "*"
+                  ]
+                },
+                {
+                  "Action": [
+                    "ec2:MonitorInstances",
+                    "ec2:UnMonitorInstances",
+                    "ec2:RunInstances",
+                    "ec2:CreateTags",
+                    "ec2:Describe*"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    "*"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "iam_pass_role",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "iam:ListRoles",
+                    "iam:ListInstanceProfiles"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "iam:PassRole"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:aws:iam::",
+                          {
+                            "Ref": "AWS::AccountId"
+                          },
+                          ":*"
+                        ]
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "cloudwatch_put_metric_alarm",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "Stmt1441123794000",
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudwatch:PutMetricAlarm",
+                    "cloudwatch:DescribeAlarms",
+                    "cloudwatch:DescribeAlarmsForMetric",
+                    "cloudwatch:DescribeAlarmHistory",
+                    "cloudwatch:DescribeAlarms",
+                    "cloudwatch:DescribeAlarmsForMetric",
+                    "cloudwatch:DisableAlarmActions"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "cloudformation_describe",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudformation:DescribeStackResource",
+                    "cloudformation:DescribeStackResources"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "EcsInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "DependsOn": "EcsRole",
+      "Properties": {
+        "Path": "/",
+        "Roles": [
+          {
+            "Ref": "EcsRole"
+          }
+        ]
+      }
+    },
+    "EcsScalingGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Metadata": {
+        "PrivateSubnet": {
+          "Ref": "Subnets"
+        }
+      },
+      "Properties": {
+        "AvailabilityZones": {
+          "Fn::GetAZs": ""
+        },
+        "VPCZoneIdentifier": {
+          "Ref": "Subnets"
+        },
+        "LaunchConfigurationName": {
+          "Ref": "EcsLaunchConfiguration"
+        },
+        "MinSize": 0,
+        "MaxSize": 3,
+        "DesiredCapacity": {
+          "Ref": "EcsInstanceCount"
+        },
+        "HealthCheckType": "EC2",
+        "HealthCheckGracePeriod": 300,
+        "LoadBalancerNames": [
+          {
+            "Ref": "ElasticLoadBalancer"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "-",
+                [
+                  {
+                    "Ref": "AWS::StackName"
+                  },
+                  "EcsScalingGroup"
+                ]
+              ]
+            },
+            "PropagateAtLaunch": true
+          }
+        ]
+      }
+    },
+    "EcsLaunchConfiguration": {
+      "Type": "AWS::AutoScaling::LaunchConfiguration",
+      "DependsOn": "EcsSecurityGroup",
+      "Metadata": {
+        "AWS::CloudFormation::Init": {
+          "configSets": {
+            "InstallAndRun": [
+              "Install",
+              "Configure"
+            ]
+          },
+          "Install": {
+            "packages": {
+              "yum": {
+                "htop": []
+              }
+            }
+          },
+          "Configure": {
+            "services": {
+              "sysvinit": {
+                "docker": {
+                  "enabled": "true",
+                  "ensureRunning": "true",
+                  "files": [
+                    "/etc/sysconfig/docker"
+                  ]
+                }
+              }
+            },
+            "files": {
+              "/home/ec2-user/.ssh/authorized_keys": {
+                "content": {
+                  "Fn::Join": [
+                    "\n",
+                    {
+                      "Fn::FindInMap": [
+                        "ssh",
+                        "pubKey",
+                        "map"
+                      ]
+                    }
+                  ]
+                },
+                "mode": "000600",
+                "owner": "ec2-user",
+                "group": "ec2-user"
+              },
+              "/etc/ecs/ecs.config": {
+                "content": {
+                  "Fn::Join": [
+                    "=",
+                    [
+                      "ECS_CLUSTER",
+                      {
+                        "Ref": "EcsCluster"
+                      }
+                    ]
+                  ]
+                },
+                "mode": "000600",
+                "owner": "root",
+                "group": "root"
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "ImageId": {
+          "Fn::FindInMap": [
+            "AMIs",
+            {
+              "Ref": "AWS::Region"
+            },
+            "EcsLinux"
+          ]
+        },
+        "SecurityGroups": [
+          {
+            "Ref": "EcsSecurityGroup"
+          }
+        ],
+        "InstanceType": {
+          "Fn::FindInMap": [
+            "instanceTypes",
+            "ecs",
+            "InstanceType"
+          ]
+        },
+        "IamInstanceProfile": {
+          "Ref": "EcsInstanceProfile"
+        },
+        "BlockDeviceMappings": [
+          {
+            "DeviceName": {
+              "Fn::FindInMap": [
+                "InstanceRootBlockDevice",
+                "ecs",
+                "DeviceName"
+              ]
+            },
+            "Ebs": {
+              "VolumeType": {
+                "Fn::FindInMap": [
+                  "InstanceRootBlockDevice",
+                  "ecs",
+                  "VolumeType"
+                ]
+              },
+              "VolumeSize": {
+                "Fn::FindInMap": [
+                  "InstanceRootBlockDevice",
+                  "ecs",
+                  "VolumeSize"
+                ]
+              }
+            }
+          }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "#!/bin/bash\n",
+                "yum install -y aws-cfn-bootstrap\n",
+                "/opt/aws/bin/cfn-init -v ",
+                "         --stack ",
+                {
+                  "Ref": "AWS::StackName"
+                },
+                "         --resource EcsLaunchConfiguration ",
+                "         --configsets InstallAndRun ",
+                "         --region ",
+                {
+                  "Ref": "AWS::Region"
+                },
+                "\n"
+              ]
+            ]
+          }
+        }
+      }
+    }
+  }
+}
