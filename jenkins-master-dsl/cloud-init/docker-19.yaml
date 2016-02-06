@@ -1,0 +1,24 @@
+#cloud-config
+repo_update: true
+repo_upgrade: security
+
+yum_repos:
+  docker:
+    baseurl: https://yum.dockerproject.org/repo/main/centos/6
+    enabled: true
+    failovermethod: priority
+    gpgcheck: true
+    gpgkey: https://yum.dockerproject.org/gpg
+    name: Docker packages from dockerproject repo
+
+packages:
+  - htop
+  - git
+  - jq
+
+runcmd:
+  - [ sh, -c, echo "========= Get instance id !=========" ]
+  - curl -s http://169.254.169.254/latest/meta-data/instance-id -o /tmp/instance_id
+  - instance_id=$(cat "/tmp/instance_id")
+
+final_message: "!!! Instance is up and running (cloud-init runs in $UPTIME seconds)"

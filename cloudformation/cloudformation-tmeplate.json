@@ -5,27 +5,24 @@
     "JenkinsMasterCount": {
       "Type": "Number",
       "Default": "2",
-      "Description": "JenkinsMasterCount",
-      "MinValue": "2",
-      "MaxValue": "10"
-    },
-    "EcsInstanceCount": {
-      "Type": "Number",
-      "Default": "2",
-      "MinValue": "2",
-      "MaxValue": "10"
+      "MinValue": "1",
+      "MaxValue": "10",
+      "Description": "How many jenkins masters we need. "
     },
     "JenkinsMasterLbDns": {
       "Type": "String",
-      "Default": "jenkins-docker"
+      "Default": "jenkins-docker",
+      "Description": "Dns name with CNAME entry in route53"
     },
     "JenkinsMasterPort": {
       "Type": "Number",
-      "Default": "8080"
+      "Default": "8080",
+      "Description": "Port exposed on instance "
     },
     "LbJenkinsPort": {
       "Type": "String",
-      "Default": "80"
+      "Default": "80",
+      "Description": "Port exposed in front of ELB"
     },
     "JenkinsDockerImage": {
       "Type": "String",
@@ -33,14 +30,15 @@
     },
     "Subnets": {
       "Type": "List<AWS::EC2::Subnet::Id>",
-      "Description": "Subnet IDs"
+      "Description": " Select multiple Subnets for redundancy."
     },
     "Vpc": {
       "Type": "AWS::EC2::VPC::Id",
       "Description": "VPC Id"
+    },
+    "KeyPair": {
+      "Type": "AWS::EC2::KeyPair::KeyName"
     }
-
-
   },
   "Mappings": {
     "instanceTypes": {
@@ -79,13 +77,6 @@
       },
       "ap-southeast-2": {
         "EcsLinux": "ami-83af8ae0"
-      }
-    },
-    "ssh": {
-      "pubKey": {
-        "map": [
-          "ssh-rsa AAAAB3............."
-        ]
       }
     },
     "IPs": {
@@ -155,7 +146,6 @@
       "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
       "DependsOn": "LbSecurityGroup",
       "Properties": {
-        "Scheme": "internal",
         "Subnets": {
           "Ref": "Subnets"
         },
@@ -280,7 +270,6 @@
                 "IPs",
                 "Allowed",
                 "Subnets"
-
               ]
             }
           }
@@ -437,6 +426,7 @@
                     "ec2:UnMonitorInstances",
                     "ec2:RunInstances",
                     "ec2:CreateTags",
+                    "ec2:CreateKeyPair",
                     "ec2:Describe*"
                   ],
                   "Effect": "Allow",
@@ -562,7 +552,7 @@
         "MinSize": 0,
         "MaxSize": 3,
         "DesiredCapacity": {
-          "Ref": "EcsInstanceCount"
+          "Ref": "JenkinsMasterCount"
         },
         "HealthCheckType": "EC2",
         "HealthCheckGracePeriod": 300,
@@ -604,7 +594,8 @@
           "Install": {
             "packages": {
               "yum": {
-                "htop": []
+                "htop": [],
+                "aws-cli": []
               }
             }
           },
@@ -621,23 +612,6 @@
               }
             },
             "files": {
-              "/home/ec2-user/.ssh/authorized_keys": {
-                "content": {
-                  "Fn::Join": [
-                    "\n",
-                    {
-                      "Fn::FindInMap": [
-                        "ssh",
-                        "pubKey",
-                        "map"
-                      ]
-                    }
-                  ]
-                },
-                "mode": "000600",
-                "owner": "ec2-user",
-                "group": "ec2-user"
-              },
               "/etc/ecs/ecs.config": {
                 "content": {
                   "Fn::Join": [
@@ -673,6 +647,9 @@
             "Ref": "EcsSecurityGroup"
           }
         ],
+        "KeyName": {
+          "Ref": "KeyPair"
+        },
         "InstanceType": {
           "Fn::FindInMap": [
             "instanceTypes",

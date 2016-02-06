@@ -1,6 +1,6 @@
 freeStyleJob("BuildJenkinsMaster"){
   description ("BuildJenkinsMaster")
-  label ("docker-19")
+  label ("docker-191")
   scm {
     git {
       remote {

@@ -27,6 +27,7 @@ RUN curl -fL https://github.com/krallin/tini/releases/download/v0.5.0/tini-stati
 
 COPY groovy/*.groovy /usr/share/jenkins/ref/init.groovy.d/
 COPY job-dsl/*.json /usr/share/jenkins/ref/init.groovy.d/job-dsl/
+COPY cloud-init/*.yaml /usr/share/jenkins/ref/init.groovy.d/cloud-init/
 
 ENV JENKINS_VERSION 1.625.3
 ENV JENKINS_SHA 537d910f541c25a23499b222ccd37ca25e074a0c
