@@ -17,7 +17,7 @@ Thread.start {
     def keyFileName = new SimpleDateFormat("yyyyMMddhhmm").format(new Date());
     def newKey = "aws --region eu-west-1 ec2 create-key-pair --key-name=${keyFileName} --output json".execute().text
     def newPrivSshKey = jsonSlurper.parseText(newKey).KeyMaterial
-    println "New Ssh key fingerprint : "+ jsonSlurper.parseText(newKey).KeyFingerprint
+    println "New Ssh key : "+ jsonSlurper.parseText(newKey)
 
     def sec_groups = "aws --region eu-west-1 ec2 describe-security-groups --output json".execute().text
     def securityGroup = jsonSlurper.parseText(sec_groups).SecurityGroups.GroupName.find { it.contains('JenkinsSlaveSecurityGroup') }
