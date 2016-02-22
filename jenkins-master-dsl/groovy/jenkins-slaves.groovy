@@ -28,7 +28,7 @@ Thread.start {
     List<SlaveTemplate> slaveTemplates = new ArrayList<SlaveTemplate>();
 
     DockerSlaveTemplate dockerSlave = new DockerSlaveTemplate()
-    dockerSlave.setAmi("ami-bff32ccc");
+    dockerSlave.setAmi("ami-13f84d60");
     dockerSlave.setUserData(new File("/usr/share/jenkins/ref/init.groovy.d/cloud-init/docker-19.yaml").text);
     dockerSlave.setLabel("docker-191 docker")
     dockerSlave.setDescription("Slave with Docker 1.9.1")

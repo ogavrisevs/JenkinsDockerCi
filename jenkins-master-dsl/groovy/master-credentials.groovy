@@ -6,7 +6,6 @@ import hudson.plugins.sshslaves.*;
 import jenkins.model.*;
 import hudson.model.*;
 
-
 Thread.start {
     sleep 10000
 
@@ -14,6 +13,5 @@ Thread.start {
     hudson.security.HudsonPrivateSecurityRealm realm = new hudson.security.HudsonPrivateSecurityRealm(false)
     Jenkins.instance.setSecurityRealm(realm);
     Jenkins.instance.setAuthorizationStrategy(new FullControlOnceLoggedInAuthorizationStrategy());
-    User user1 = realm.createAccount("admin", "password");
-
+    User user1 = realm.createAccount("admin", "y8D3hvCTnCv6bjAhPxAzHyqL8qpx");
 }
