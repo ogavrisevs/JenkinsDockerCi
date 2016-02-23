@@ -1,0 +1,21 @@
+gogs:
+  image: gogs/gogs
+  ports:
+    - "10022:22"
+    - "10080:3000"
+  volumes:
+    - ./gogs-data:/data
+drone:
+  image: drone/drone
+  ports:
+    - "8000:8000"
+  links:
+    - gogs
+  volumes:
+    - /var/lib/drone:/var/lib/drone
+    - /var/run/docker.sock:/var/run/docker.sock
+  environment:
+    DATABASE_DRIVER: sqlite3
+    DATABASE_CONFIG: /var/lib/drone/drone.sqlite
+    REMOTE_DRIVER: gogs
+    REMOTE_CONFIG: http://gogs:3000?open=true
