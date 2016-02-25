@@ -1,0 +1,9 @@
+publish:
+  docker:
+    username: aaaa
+    password: pa55word
+    email: kevin.bacon@mail.com
+    repo: ogavrisevs/jenkinsdockerci
+    tag: latest
+    file: ./jenkins-master-dsl/Dockerfile
+    insecure: false

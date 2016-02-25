@@ -5,6 +5,8 @@ gogs:
     - "10080:3000"
   volumes:
     - ./gogs-data:/data
+    - ./../../JenkinsDockerCi:/JenkinsDockerCi
+
 drone:
   image: drone/drone
   ports:
